@@ -20,9 +20,35 @@ FLASH_MS = 1200        # how long "Copied!" stays up
 WATCH_MS = 700         # clipboard poll interval while "Watch clipboard" is on
 MAX_HINT_MATCHES = 20
 HINT_COLUMNS = 5
-ACCENT = '#EF5350'     # pokéball red
-ACCENT_HOVER = '#D84340'
 FILETYPES = [('Images', '*.png *.jpg *.jpeg *.webp *.gif *.bmp'), ('All files', '*.*')]
+
+ACCENT = '#EF5350'     # pokéball red, the only accent
+ACCENT_HOVER = '#D84340'
+BG = '#14161B'
+CARD = '#1D2027'
+RAISED = '#2A2E38'     # neutral buttons, switch tracks
+RAISED_HOVER = '#353A46'
+TEXT = '#E8EAED'
+MUTED = '#8B909A'
+BODY_FONT = 'Inter'
+DISPLAY_FONT = 'Rubik'
+FONTS = pokedex.DATA / 'fonts'
+
+
+def _apply_theme():
+  """Bundled fonts + palette, set on CustomTkinter's theme before any widget exists."""
+  for path in FONTS.glob('*.ttf'):
+    ctk.FontManager.load_font(str(path))  # private to this process, nothing installed
+  theme = ctk.ThemeManager.theme
+  theme['CTkFont']['family'] = BODY_FONT
+  theme['CTk']['fg_color'] = [BG, BG]
+  theme['CTkFrame'].update(fg_color=[CARD, CARD], top_fg_color=[CARD, CARD])
+  theme['CTkButton'].update(fg_color=[RAISED, RAISED], hover_color=[RAISED_HOVER, RAISED_HOVER],
+                            border_color=[RAISED, RAISED], text_color=[TEXT, TEXT])
+  theme['CTkEntry'].update(fg_color=[BG, BG], border_color=[RAISED, RAISED])
+  theme['CTkProgressBar'].update(fg_color=[BG, BG], progress_color=[ACCENT, ACCENT])
+  theme['CTkSwitch'].update(fg_color=[RAISED, RAISED], progress_color=[ACCENT, ACCENT])
+  theme['CTkLabel']['text_color'] = [TEXT, TEXT]
 
 
 def _grab():
@@ -51,6 +77,7 @@ def _clipboard_seq():
 
 class App(ctk.CTk):
   def __init__(self):
+    _apply_theme()
     super().__init__()
     self.title('outn-local')
     self.geometry('920x760')
@@ -64,8 +91,8 @@ class App(ctk.CTk):
     self._last_seq = None
     self._poll_id = None
 
-    self._big = ctk.CTkFont(size=34, weight='bold')
-    self._medium = ctk.CTkFont(size=20, weight='bold')
+    self._hero = ctk.CTkFont(family=DISPLAY_FONT, size=40, weight='bold')
+    self._medium = ctk.CTkFont(family=DISPLAY_FONT, size=20, weight='bold')
 
     self.grid_columnconfigure((0, 1), weight=1, uniform='col')
     self.grid_rowconfigure(0, weight=1)
@@ -89,9 +116,14 @@ class App(ctk.CTk):
 
     # Switch and buttons are packed first (from the bottom) so a short window
     # clips the preview, never the controls.
-    self.watch = ctk.CTkSwitch(self.left, text='Watch clipboard', command=self._toggle_watch,
-                               progress_color=ACCENT)
-    self.watch.pack(side='bottom', pady=(0, 22))
+    switches = ctk.CTkFrame(self.left, fg_color='transparent')
+    switches.pack(side='bottom', pady=(0, 22))
+    self.watch = ctk.CTkSwitch(switches, text='Watch clipboard', command=self._toggle_watch)
+    self.watch.pack(side='left', padx=8)
+    # Watching while playing in Discord buries this window; keep it in front.
+    self.on_top = ctk.CTkSwitch(switches, text='Always on top',
+                                command=lambda: self.attributes('-topmost', bool(self.on_top.get())))
+    self.on_top.pack(side='left', padx=8)
 
     buttons = ctk.CTkFrame(self.left, fg_color='transparent')
     buttons.pack(side='bottom', pady=(0, 12))
@@ -110,32 +142,38 @@ class App(ctk.CTk):
     self.left.bind('<Button-1>', lambda _e: self.focus_set())
 
   def _build_result_card(self):
-    right = ctk.CTkFrame(self, corner_radius=18)
-    right.grid(row=0, column=1, padx=(10, 20), pady=20, sticky='nsew')
+    # The border only shows for rare spawns, in the tier colour (see _show_result).
+    self.right = ctk.CTkFrame(self, corner_radius=18, border_width=2, border_color=CARD)
+    self.right.grid(row=0, column=1, padx=(10, 20), pady=20, sticky='nsew')
+    right = self.right
 
-    self.headline = ctk.CTkLabel(right, text='', font=self._big, wraplength=360)
-    self.headline.pack(padx=24, pady=(48, 10))
+    self.kicker = ctk.CTkLabel(right, text='', text_color=MUTED, height=0,
+                               font=ctk.CTkFont(size=15))
+    self.kicker.pack(pady=(48, 0))
+    self.headline = ctk.CTkLabel(right, text='', font=self._hero, wraplength=360)
+    self.headline.pack(padx=24, pady=(0, 10))
 
     self.badge = ctk.CTkLabel(right, text='', corner_radius=12, text_color='#1A1A1A',
                               font=ctk.CTkFont(size=15, weight='bold'))
     self.badge.pack(pady=6)
 
-    self.bar = ctk.CTkProgressBar(right, width=300, height=14, progress_color=ACCENT)
+    self.bar = ctk.CTkProgressBar(right, width=300, height=12)
     self.bar.pack(pady=(18, 4))
-    self.confidence = ctk.CTkLabel(right, text='')
+    self.confidence = ctk.CTkLabel(right, text='', text_color=MUTED)
     self.confidence.pack()
 
-    self.runners = ctk.CTkLabel(right, text='', text_color='gray60')
+    self.runners = ctk.CTkLabel(right, text='', text_color=MUTED)
     self.runners.pack(pady=(12, 0))
 
     self.copy_btn = ctk.CTkButton(right, text='Copy name', width=160,
+                                  fg_color=ACCENT, hover_color=ACCENT_HOVER,
                                   command=lambda: self._copy(self._name, self.copy_btn))
     self.copy_btn.pack(pady=(24, 30))
 
   def _build_hint_card(self):
     bottom = ctk.CTkFrame(self, corner_radius=18)
     bottom.grid(row=1, column=0, columnspan=2, padx=20, pady=(0, 20), sticky='ew')
-    ctk.CTkLabel(bottom, text='Hint solver', font=ctk.CTkFont(size=16, weight='bold')
+    ctk.CTkLabel(bottom, text='Hint solver', font=ctk.CTkFont(family=DISPLAY_FONT, size=16, weight='bold')
                  ).pack(anchor='w', padx=20, pady=(14, 4))
     self.hint_entry = ctk.CTkEntry(bottom, placeholder_text='Paste a Pokétwo hint, or type p_k_chu')
     self.hint_entry.pack(fill='x', padx=20)
@@ -143,7 +181,7 @@ class App(ctk.CTk):
     self.hint_matches = ctk.CTkFrame(bottom, fg_color='transparent')
     self.hint_matches.pack(fill='x', padx=20, pady=(6, 14))
     # Always keep one child: an empty CTkFrame requests its default 200px height.
-    self.hint_header = ctk.CTkLabel(self.hint_matches, text='', text_color='gray60', height=0)
+    self.hint_header = ctk.CTkLabel(self.hint_matches, text='', text_color=MUTED, height=0)
     self.hint_header.grid(row=0, column=0, columnspan=HINT_COLUMNS, sticky='w')
 
   # ---- inputs -------------------------------------------------------------
@@ -295,6 +333,8 @@ class App(ctk.CTk):
 
   def _show_message(self, text):
     self._name = None
+    self._set_tier_colour(None)
+    self.kicker.configure(text='')
     self.headline.configure(text=text, font=self._medium)
     self.badge.configure(text='', fg_color='transparent')
     self.bar.set(0)
@@ -305,17 +345,25 @@ class App(ctk.CTk):
   def _show_result(self, results):
     (name, conf), rest = results[0], results[1:]
     self._name = name
-    self.headline.configure(text=pokedex.headline(name, conf), font=self._big)
+    kicker, pretty = pokedex.headline(name, conf)
+    self.kicker.configure(text=kicker)
+    self.headline.configure(text=pretty, font=self._hero)
     badge = pokedex.BADGES.get(pokedex.tier_of(name))
     if badge:
       self.badge.configure(text=f'  {badge[0]}  ', fg_color=badge[1])
     else:
       self.badge.configure(text='', fg_color='transparent')
+    self._set_tier_colour(badge and badge[1])
     self.bar.set(conf)
     self.confidence.configure(text=f'{conf:.0%} sure')
     self.runners.configure(
         text='  ·  '.join(f'{pokedex.display_name(n)} {c:.0%}' for n, c in rest))
     self.copy_btn.configure(state='normal')
+
+  def _set_tier_colour(self, colour):
+    """Rare spawns tint the card border and confidence bar; None resets to plain."""
+    self.right.configure(border_color=colour or CARD)
+    self.bar.configure(progress_color=colour or ACCENT)
 
   def _copy(self, text, button=None):
     if not text:

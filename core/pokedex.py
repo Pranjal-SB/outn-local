@@ -61,5 +61,6 @@ def display_name(name):
 
 
 def headline(name, confidence):
+  """(kicker, name) -- the GUI shows the kicker small above the name."""
   pretty = display_name(name)
-  return f"It's {pretty}!" if confidence >= UNSURE_BELOW else f"Probably {pretty}?"
+  return ("It's", f'{pretty}!') if confidence >= UNSURE_BELOW else ('Probably', f'{pretty}?')

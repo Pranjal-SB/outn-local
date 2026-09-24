@@ -53,10 +53,10 @@ def test_every_non_common_tier_has_a_badge():
 
 
 def test_headline():
-  assert pokedex.headline('pikachu', 0.93) == "It's Pikachu!"
-  assert pokedex.headline('pikachu', 0.60) == "It's Pikachu!"
-  assert pokedex.headline('pikachu', 0.59) == "Probably Pikachu?"
-  assert pokedex.headline('mr-rime', 0.9) == "It's Mr-Rime!"
+  assert pokedex.headline('pikachu', 0.93) == ("It's", 'Pikachu!')
+  assert pokedex.headline('pikachu', 0.60) == ("It's", 'Pikachu!')
+  assert pokedex.headline('pikachu', 0.59) == ('Probably', 'Pikachu?')
+  assert pokedex.headline('mr-rime', 0.9) == ("It's", 'Mr-Rime!')
 
 
 def test_display_name():
