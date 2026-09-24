@@ -1,0 +1,4 @@
+customtkinter>=6.0
+numpy
+pillow>=10.3
+tensorflow>=2.16
