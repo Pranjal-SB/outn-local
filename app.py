@@ -3,6 +3,7 @@
 import ctypes
 import hashlib
 import queue
+import sys
 import threading
 import tkinter
 import traceback
@@ -37,8 +38,12 @@ FONTS = pokedex.DATA / 'fonts'
 
 def _apply_theme():
   """Bundled fonts + palette, set on CustomTkinter's theme before any widget exists."""
-  for path in FONTS.glob('*.ttf'):
-    ctk.FontManager.load_font(str(path))  # private to this process, nothing installed
+  if sys.platform.startswith('linux'):
+    # CTk's Linux loader copies into ~/.fonts; register with fontconfig for this process instead
+    ctypes.CDLL('libfontconfig.so.1').FcConfigAppFontAddDir(None, str(FONTS).encode())
+  else:
+    for path in FONTS.glob('*.ttf'):
+      ctk.FontManager.load_font(str(path))  # private to this process, nothing installed
   theme = ctk.ThemeManager.theme
   theme['CTkFont']['family'] = BODY_FONT
   theme['CTk']['fg_color'] = [BG, BG]
